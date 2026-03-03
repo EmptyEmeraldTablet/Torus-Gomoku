@@ -220,6 +220,24 @@ body::before {
   flex-wrap: wrap;
 }
 
+.project-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-link::after {
+  content: "↗";
+  font-size: 0.85em;
+}
+
+.project-link:hover {
+  text-decoration: underline;
+}
+
 .board-area {
   display: flex;
   justify-content: center;
