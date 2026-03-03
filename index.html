@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>环面五子棋</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="kicker">Torus Gomoku</p>
+          <h1>环面五子棋</h1>
+          <p class="sub">棋盘无边界，上下左右相连。拖动平移，点击落子。</p>
+        </div>
+        <div class="panel">
+          <div class="status">
+            <div class="status-row">
+              <span class="label">当前玩家</span>
+              <span id="current-player" class="value"></span>
+            </div>
+            <div class="status-row">
+              <span class="label">胜者</span>
+              <span id="winner" class="value"></span>
+            </div>
+          </div>
+          <div class="controls">
+            <div class="control-row">
+              <label class="label" for="board-size">棋盘大小</label>
+              <div class="control-group">
+                <select id="board-size" class="select">
+                  <option value="13">13 x 13</option>
+                  <option value="15" selected>15 x 15</option>
+                  <option value="19">19 x 19</option>
+                </select>
+                <button id="apply-size-btn" class="btn secondary" type="button">
+                  应用
+                </button>
+              </div>
+            </div>
+            <p class="hint">调整大小会重置棋局</p>
+            <div class="button-row">
+              <button id="undo-btn" class="btn ghost" type="button">撤回</button>
+              <button id="reset-btn" class="btn" type="button">重置</button>
+            </div>
+          </div>
+        </div>
+      </header>
+      <main class="board-area">
+        <div class="board-card">
+          <canvas
+            id="board-canvas"
+            width="720"
+            height="720"
+            aria-label="环面五子棋棋盘"
+          ></canvas>
+          <div class="legend">
+            <span class="legend-item">
+              <span class="line solid"></span>
+              实线: 作为基准边
+            </span>
+            <span class="legend-item">
+              <span class="line dashed"></span>
+              虚线: 与对边连接
+            </span>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
