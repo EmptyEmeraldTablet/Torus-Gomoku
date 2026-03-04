@@ -1,10 +1,18 @@
 import { createBoard, createEmptyGrid } from "./board";
 import { DEFAULT_COLS, DEFAULT_ROWS, WIN_LENGTH } from "./constants";
-import { BoardState, PlaceRequest, PlayerColor, WrapTransition } from "./types";
+import {
+  AIDifficulty,
+  BoardState,
+  GameMode,
+  PlaceRequest,
+  PlayerColor,
+  WrapTransition,
+} from "./types";
 import { mod } from "../utils/math";
 import { CameraController } from "../interaction/camera";
 import { Renderer } from "../rendering/renderer";
 import { InputHandler } from "../interaction/input";
+import { pickAIMove } from "./ai";
 
 type GameOptions = {
   rows?: number;
@@ -20,6 +28,10 @@ export class Game {
   private onStateChange?: (board: BoardState) => void;
   private rafHandle = 0;
   private wrapTransition: WrapTransition | null = null;
+  private mode: GameMode = "pvp";
+  private aiPlayer: PlayerColor = "white";
+  private aiDifficulty: AIDifficulty = "medium";
+  private aiThinking = false;
 
   constructor(canvas: HTMLCanvasElement, options: GameOptions = {}) {
     const rows = options.rows ?? DEFAULT_ROWS;
@@ -52,16 +64,21 @@ export class Game {
     this.wrapTransition = null;
     this.notifyState();
     this.render();
+    this.maybeTriggerAI();
   }
 
   undo() {
     if (this.board.moveHistory.length === 0) return;
-    const last = this.board.moveHistory.pop();
-    if (!last) return;
-    const lastPlayer = this.board.grid[last.row][last.col];
-    this.board.grid[last.row][last.col] = null;
-    if (lastPlayer) {
-      this.board.currentPlayer = lastPlayer;
+    this.undoOnce();
+    if (this.mode === "pve") {
+      const humanPlayer = this.getHumanPlayer();
+      if (
+        this.board.moveHistory.length > 0 &&
+        this.board.currentPlayer !== humanPlayer
+      ) {
+        this.undoOnce();
+      }
+      this.board.currentPlayer = humanPlayer;
     }
     this.board.winner = null;
     this.wrapTransition = null;
@@ -78,6 +95,26 @@ export class Game {
     this.wrapTransition = null;
     this.notifyState();
     this.render();
+    this.maybeTriggerAI();
+  }
+
+  configureAI(settings: {
+    mode?: GameMode;
+    aiPlayer?: PlayerColor;
+    difficulty?: AIDifficulty;
+  }) {
+    if (settings.mode) {
+      this.mode = settings.mode;
+    }
+    if (settings.aiPlayer) {
+      this.aiPlayer = settings.aiPlayer;
+    }
+    if (settings.difficulty) {
+      this.aiDifficulty = settings.difficulty;
+    }
+    this.aiThinking = false;
+    this.notifyState();
+    this.maybeTriggerAI();
   }
 
   private notifyState() {
@@ -93,41 +130,18 @@ export class Game {
 
   private onPlace = (placement: PlaceRequest) => {
     if (this.board.winner) return;
-    const gridCoord = placement.coord;
+    if (this.mode === "pve" && this.board.currentPlayer === this.aiPlayer) {
+      return;
+    }
     const r = mod(
-      gridCoord.row + this.camera.offsetRow,
+      placement.coord.row + this.camera.offsetRow,
       this.board.rows,
     );
     const c = mod(
-      gridCoord.col + this.camera.offsetCol,
+      placement.coord.col + this.camera.offsetCol,
       this.board.cols,
     );
-    if (this.board.grid[r][c] !== null) return;
-
-    const placedPlayer = this.board.currentPlayer;
-    this.board.grid[r][c] = placedPlayer;
-    this.board.moveHistory.push({ row: r, col: c });
-
-    if (placement.wrapRow || placement.wrapCol) {
-      this.wrapTransition = {
-        to: { row: r, col: c },
-        wrapRow: placement.wrapRow,
-        wrapCol: placement.wrapCol,
-        player: placedPlayer,
-        start: performance.now(),
-        duration: 420,
-      };
-    }
-
-    if (this.checkWin(r, c)) {
-      this.board.winner = placedPlayer;
-    } else {
-      this.board.currentPlayer =
-        this.board.currentPlayer === "black" ? "white" : "black";
-    }
-
-    this.notifyState();
-    this.render();
+    this.applyMove({ row: r, col: c }, placement.wrapRow, placement.wrapCol);
   };
 
   private checkWin(row: number, col: number): boolean {
@@ -173,5 +187,67 @@ export class Game {
         }
       }
     });
+  }
+
+  private applyMove(
+    coord: { row: number; col: number },
+    wrapRow = false,
+    wrapCol = false,
+  ) {
+    if (this.board.grid[coord.row][coord.col] !== null) return;
+
+    const placedPlayer = this.board.currentPlayer;
+    this.board.grid[coord.row][coord.col] = placedPlayer;
+    this.board.moveHistory.push({ row: coord.row, col: coord.col });
+
+    if (wrapRow || wrapCol) {
+      this.wrapTransition = {
+        to: { row: coord.row, col: coord.col },
+        wrapRow,
+        wrapCol,
+        player: placedPlayer,
+        start: performance.now(),
+        duration: 420,
+      };
+    }
+
+    if (this.checkWin(coord.row, coord.col)) {
+      this.board.winner = placedPlayer;
+    } else {
+      this.board.currentPlayer =
+        this.board.currentPlayer === "black" ? "white" : "black";
+    }
+
+    this.notifyState();
+    this.render();
+    this.maybeTriggerAI();
+  }
+
+  private undoOnce() {
+    const last = this.board.moveHistory.pop();
+    if (!last) return;
+    const lastPlayer = this.board.grid[last.row][last.col];
+    this.board.grid[last.row][last.col] = null;
+    if (lastPlayer) {
+      this.board.currentPlayer = lastPlayer;
+    }
+  }
+
+  private maybeTriggerAI() {
+    if (this.mode !== "pve") return;
+    if (this.board.winner) return;
+    if (this.aiThinking) return;
+    if (this.board.currentPlayer !== this.aiPlayer) return;
+    this.aiThinking = true;
+    window.setTimeout(() => {
+      const move = pickAIMove(this.board, this.aiPlayer, this.aiDifficulty);
+      this.aiThinking = false;
+      if (!move || this.board.winner) return;
+      this.applyMove(move, false, false);
+    }, 120);
+  }
+
+  private getHumanPlayer(): PlayerColor {
+    return this.aiPlayer === "black" ? "white" : "black";
   }
 }

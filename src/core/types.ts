@@ -6,6 +6,9 @@ export type Coord = {
 export type Player = "black" | "white" | null;
 export type PlayerColor = Exclude<Player, null>;
 
+export type GameMode = "pvp" | "pve";
+export type AIDifficulty = "easy" | "medium" | "hard";
+
 export type BoardState = {
   rows: number;
   cols: number;

@@ -27,6 +27,28 @@
           </div>
           <div class="controls">
             <div class="control-row">
+              <label class="label" for="mode-select">对弈模式</label>
+              <select id="mode-select" class="select">
+                <option value="pvp" selected>玩家对玩家</option>
+                <option value="pve">人机对弈</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label class="label" for="ai-difficulty">AI 难度</label>
+              <select id="ai-difficulty" class="select">
+                <option value="easy">简单</option>
+                <option value="medium" selected>普通</option>
+                <option value="hard">困难</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label class="label" for="ai-color">AI 执子</label>
+              <select id="ai-color" class="select">
+                <option value="black">黑棋（先手）</option>
+                <option value="white" selected>白棋（后手）</option>
+              </select>
+            </div>
+            <div class="control-row">
               <label class="label" for="board-size">棋盘大小</label>
               <div class="control-group">
                 <select id="board-size" class="select">
