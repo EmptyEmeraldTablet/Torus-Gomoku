@@ -29,6 +29,14 @@ const game = new Game(canvas, {
   onStateChange: updateStatus,
 });
 
+window.requestAnimationFrame(() => {
+  game.resize();
+});
+
+window.addEventListener("load", () => {
+  game.resize();
+});
+
 let gameMode: GameMode = "pvp";
 let aiDifficulty: AIDifficulty = "medium";
 let aiPlayer: PlayerColor = "white";

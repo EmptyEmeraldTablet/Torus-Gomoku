@@ -10,6 +10,8 @@ export class Renderer {
   private rows: number;
   private cols: number;
   private metrics: RenderMetrics;
+  private fallbackWidth: number;
+  private fallbackHeight: number;
 
   constructor(canvas: HTMLCanvasElement, rows: number, cols: number) {
     const context = canvas.getContext("2d");
@@ -20,6 +22,8 @@ export class Renderer {
     this.ctx = context;
     this.rows = rows;
     this.cols = cols;
+    this.fallbackWidth = canvas.width || 720;
+    this.fallbackHeight = canvas.height || 720;
     this.metrics = {
       boardX: 0,
       boardY: 0,
@@ -44,17 +48,19 @@ export class Renderer {
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
+    const measuredWidth = rect.width > 1 ? rect.width : this.fallbackWidth;
+    const measuredHeight = rect.height > 1 ? rect.height : this.fallbackHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    this.canvas.width = Math.max(1, Math.floor(measuredWidth * dpr));
+    this.canvas.height = Math.max(1, Math.floor(measuredHeight * dpr));
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const gridCols = Math.max(this.cols, 1);
     const gridRows = Math.max(this.rows, 1);
-    const padding = Math.max(20, Math.min(rect.width, rect.height) * 0.06);
+    const padding = Math.max(20, Math.min(measuredWidth, measuredHeight) * 0.06);
     const maxCell = Math.min(
-      (rect.width - padding * 2) / gridCols,
-      (rect.height - padding * 2) / gridRows,
+      (measuredWidth - padding * 2) / gridCols,
+      (measuredHeight - padding * 2) / gridRows,
     );
     let cellSize = Math.floor(Math.min(maxCell, MAX_CELL_PX));
     if (cellSize < MIN_CELL_PX) {
@@ -63,8 +69,13 @@ export class Renderer {
 
     const boardWidth = cellSize * gridCols;
     const boardHeight = cellSize * gridRows;
-    const boardX = (rect.width - boardWidth) / 2;
-    const boardY = (rect.height - boardHeight) / 2;
+    const boardX = (measuredWidth - boardWidth) / 2;
+    const boardY = (measuredHeight - boardHeight) / 2;
+
+    if (rect.width > 1 && rect.height > 1) {
+      this.fallbackWidth = rect.width;
+      this.fallbackHeight = rect.height;
+    }
 
     this.metrics = {
       boardX,
