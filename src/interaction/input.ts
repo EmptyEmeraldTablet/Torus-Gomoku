@@ -37,13 +37,6 @@ export class InputHandler {
     this.canvas.addEventListener("pointermove", this.handlePointerMove);
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
     this.canvas.addEventListener("pointercancel", this.handlePointerCancel);
-    this.canvas.addEventListener(
-      "lostpointercapture",
-      this.handleLostPointerCapture,
-    );
-    window.addEventListener("pointerup", this.handleWindowPointerUp);
-    window.addEventListener("pointercancel", this.handleWindowPointerUp);
-    window.addEventListener("blur", this.handleWindowBlur);
     this.canvas.addEventListener("contextmenu", (event) =>
       event.preventDefault(),
     );
@@ -62,9 +55,7 @@ export class InputHandler {
       accumX: 0,
       accumY: 0,
     };
-    if (event.pointerType === "touch") {
-      this.canvas.setPointerCapture(event.pointerId);
-    }
+    this.canvas.setPointerCapture(event.pointerId);
   };
 
   private handlePointerMove = (event: PointerEvent) => {
@@ -123,9 +114,7 @@ export class InputHandler {
     }
 
     this.drag = null;
-    if (this.canvas.hasPointerCapture(event.pointerId)) {
-      this.canvas.releasePointerCapture(event.pointerId);
-    }
+    this.canvas.releasePointerCapture(event.pointerId);
   };
 
   private handlePointerCancel = (event: PointerEvent) => {
@@ -135,24 +124,6 @@ export class InputHandler {
     if (this.canvas.hasPointerCapture(event.pointerId)) {
       this.canvas.releasePointerCapture(event.pointerId);
     }
-  };
-
-  private handleLostPointerCapture = (event: PointerEvent) => {
-    if (this.drag?.pointerId === event.pointerId) {
-      this.drag = null;
-    }
-  };
-
-  private handleWindowPointerUp = (event: PointerEvent) => {
-    if (this.drag?.pointerId !== event.pointerId) return;
-    this.drag = null;
-    if (this.canvas.hasPointerCapture(event.pointerId)) {
-      this.canvas.releasePointerCapture(event.pointerId);
-    }
-  };
-
-  private handleWindowBlur = () => {
-    this.drag = null;
   };
 
   private getPointerPosition(event: PointerEvent) {

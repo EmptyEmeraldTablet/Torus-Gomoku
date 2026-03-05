@@ -10,8 +10,6 @@ export class Renderer {
   private rows: number;
   private cols: number;
   private metrics: RenderMetrics;
-  private fallbackWidth: number;
-  private fallbackHeight: number;
 
   constructor(canvas: HTMLCanvasElement, rows: number, cols: number) {
     const context = canvas.getContext("2d");
@@ -22,8 +20,6 @@ export class Renderer {
     this.ctx = context;
     this.rows = rows;
     this.cols = cols;
-    this.fallbackWidth = canvas.width || 720;
-    this.fallbackHeight = canvas.height || 720;
     this.metrics = {
       boardX: 0,
       boardY: 0,
@@ -48,15 +44,15 @@ export class Renderer {
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    const measuredWidth = rect.width > 1 ? rect.width : this.fallbackWidth;
-    const measuredHeight = rect.height > 1 ? rect.height : this.fallbackHeight;
+    const measuredWidth = rect.width > 1 ? rect.width : 720;
+    const measuredHeight = rect.height > 1 ? rect.height : 720;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = Math.max(1, Math.floor(measuredWidth * dpr));
     this.canvas.height = Math.max(1, Math.floor(measuredHeight * dpr));
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const gridCols = Math.max(this.cols, 1);
-    const gridRows = Math.max(this.rows, 1);
+    const gridCols = Math.max(this.cols - 1, 1);
+    const gridRows = Math.max(this.rows - 1, 1);
     const padding = Math.max(20, Math.min(measuredWidth, measuredHeight) * 0.06);
     const maxCell = Math.min(
       (measuredWidth - padding * 2) / gridCols,
@@ -71,11 +67,6 @@ export class Renderer {
     const boardHeight = cellSize * gridRows;
     const boardX = (measuredWidth - boardWidth) / 2;
     const boardY = (measuredHeight - boardHeight) / 2;
-
-    if (rect.width > 1 && rect.height > 1) {
-      this.fallbackWidth = rect.width;
-      this.fallbackHeight = rect.height;
-    }
 
     this.metrics = {
       boardX,
@@ -119,36 +110,33 @@ export class Renderer {
 
   private drawPlayableAreaHint() {
     const { boardX, boardY, boardWidth, boardHeight, cellSize } = this.metrics;
-    const playableWidth = Math.max(0, boardWidth - cellSize);
-    const playableHeight = Math.max(0, boardHeight - cellSize);
-    if (playableWidth === 0 || playableHeight === 0) return;
-
+    const band = Math.max(6, cellSize * 0.18);
     this.ctx.save();
     this.ctx.fillStyle = "rgba(196, 106, 58, 0.08)";
     this.ctx.fillRect(
       boardX,
-      boardY + playableHeight,
-      playableWidth,
-      cellSize,
+      boardY + boardHeight - band,
+      boardWidth,
+      band,
     );
     this.ctx.fillRect(
-      boardX + playableWidth,
+      boardX + boardWidth - band,
       boardY,
-      cellSize,
-      playableHeight,
+      band,
+      boardHeight,
     );
     this.ctx.fillStyle = "rgba(196, 106, 58, 0.12)";
     this.ctx.fillRect(
-      boardX + playableWidth,
-      boardY + playableHeight,
-      cellSize,
-      cellSize,
+      boardX + boardWidth - band,
+      boardY + boardHeight - band,
+      band,
+      band,
     );
 
     this.ctx.strokeStyle = "rgba(92, 76, 62, 0.35)";
     this.ctx.lineWidth = 1.5;
     this.ctx.setLineDash([]);
-    this.ctx.strokeRect(boardX, boardY, playableWidth, playableHeight);
+    this.ctx.strokeRect(boardX, boardY, boardWidth, boardHeight);
     this.ctx.restore();
   }
 
@@ -163,7 +151,7 @@ export class Renderer {
     ctx.strokeStyle = innerColor;
     ctx.setLineDash([]);
 
-    for (let r = 1; r < this.rows; r += 1) {
+    for (let r = 1; r < this.rows - 1; r += 1) {
       const y = boardY + r * cellSize;
       ctx.beginPath();
       ctx.moveTo(boardX, y);
@@ -171,7 +159,7 @@ export class Renderer {
       ctx.stroke();
     }
 
-    for (let c = 1; c < this.cols; c += 1) {
+    for (let c = 1; c < this.cols - 1; c += 1) {
       const x = boardX + c * cellSize;
       ctx.beginPath();
       ctx.moveTo(x, boardY);
