@@ -29,9 +29,22 @@ const game = new Game(canvas, {
   onStateChange: updateStatus,
 });
 
-window.requestAnimationFrame(() => {
-  game.resize();
-});
+let resizeHandle = 0;
+const queueResize = () => {
+  if (resizeHandle) return;
+  resizeHandle = window.requestAnimationFrame(() => {
+    resizeHandle = 0;
+    game.resize();
+  });
+};
+
+queueResize();
+if (typeof ResizeObserver !== "undefined") {
+  const resizeObserver = new ResizeObserver(() => {
+    queueResize();
+  });
+  resizeObserver.observe(canvas);
+}
 
 let gameMode: GameMode = "pvp";
 let aiDifficulty: AIDifficulty = "medium";
@@ -56,9 +69,7 @@ applySizeBtn?.addEventListener("click", () => {
   }
 });
 
-window.addEventListener("resize", () => {
-  game.resize();
-});
+window.addEventListener("resize", queueResize);
 
 modeSelect?.addEventListener("change", () => {
   if (!modeSelect) return;

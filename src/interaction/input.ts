@@ -10,6 +10,8 @@ type DragState = {
   moved: boolean;
   accumX: number;
   accumY: number;
+  captured: boolean;
+  didPan: boolean;
 };
 
 export class InputHandler {
@@ -37,9 +39,11 @@ export class InputHandler {
     this.canvas.addEventListener("pointermove", this.handlePointerMove);
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
     this.canvas.addEventListener("pointercancel", this.handlePointerCancel);
+    this.canvas.addEventListener("lostpointercapture", this.handleLostPointerCapture);
     this.canvas.addEventListener("contextmenu", (event) =>
       event.preventDefault(),
     );
+    window.addEventListener("blur", this.handleWindowBlur);
   }
 
   private handlePointerDown = (event: PointerEvent) => {
@@ -54,13 +58,20 @@ export class InputHandler {
       moved: false,
       accumX: 0,
       accumY: 0,
+      captured: false,
+      didPan: false,
     };
-    this.canvas.setPointerCapture(event.pointerId);
+    if (event.pointerType !== "mouse") {
+      this.capturePointer(event.pointerId);
+    }
   };
 
   private handlePointerMove = (event: PointerEvent) => {
     if (!this.drag || this.drag.pointerId !== event.pointerId) return;
-    event.preventDefault();
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      this.cancelDrag(event.pointerId);
+      return;
+    }
     const { x, y } = this.getPointerPosition(event);
     const totalDx = x - this.drag.startX;
     const totalDy = y - this.drag.startY;
@@ -75,18 +86,23 @@ export class InputHandler {
         this.drag.moved = true;
         this.drag.accumX = totalDx;
         this.drag.accumY = totalDy;
+        this.capturePointer(event.pointerId);
+        event.preventDefault();
       }
     } else {
+      event.preventDefault();
       this.drag.accumX += stepDx;
       this.drag.accumY += stepDy;
     }
 
     if (this.drag.moved) {
       const { cellSize } = this.getMetrics();
+      if (cellSize <= 0) return;
       const moveCols = -Math.trunc(this.drag.accumX / cellSize);
       const moveRows = -Math.trunc(this.drag.accumY / cellSize);
       if (moveRows !== 0 || moveCols !== 0) {
         this.onMove(moveRows, moveCols);
+        this.drag.didPan = true;
         this.drag.accumX += moveCols * cellSize;
         this.drag.accumY += moveRows * cellSize;
       }
@@ -101,10 +117,10 @@ export class InputHandler {
     const { x, y } = this.getPointerPosition(event);
     const totalDx = x - this.drag.startX;
     const totalDy = y - this.drag.startY;
-    const wasClick =
-      !this.drag.moved &&
-      Math.abs(totalDx) <= DRAG_THRESHOLD_PX &&
-      Math.abs(totalDy) <= DRAG_THRESHOLD_PX;
+    const totalDistance = Math.hypot(totalDx, totalDy);
+    const { cellSize } = this.getMetrics();
+    const clickTolerance = Math.max(DRAG_THRESHOLD_PX, cellSize * 0.25);
+    const wasClick = !this.drag.didPan && totalDistance <= clickTolerance;
 
     if (wasClick) {
       const coord = this.screenToGrid(x, y);
@@ -113,14 +129,42 @@ export class InputHandler {
       }
     }
 
-    this.drag = null;
-    this.canvas.releasePointerCapture(event.pointerId);
+    this.cancelDrag(event.pointerId);
   };
 
   private handlePointerCancel = (event: PointerEvent) => {
-    if (this.drag?.pointerId === event.pointerId) {
-      this.drag = null;
+    this.cancelDrag(event.pointerId);
+  };
+
+  private handleLostPointerCapture = (event: PointerEvent) => {
+    this.cancelDrag(event.pointerId);
+  };
+
+  private handleWindowBlur = () => {
+    this.cancelDrag();
+  };
+
+  private capturePointer(pointerId: number) {
+    if (!this.drag || this.drag.captured) return;
+    try {
+      this.canvas.setPointerCapture(pointerId);
+      this.drag.captured = true;
+    } catch {
+      this.drag.captured = false;
     }
+  }
+
+  private cancelDrag(pointerId?: number) {
+    if (!this.drag) return;
+    if (pointerId !== undefined && this.drag.pointerId !== pointerId) return;
+    if (this.drag.captured) {
+      try {
+        this.canvas.releasePointerCapture(this.drag.pointerId);
+      } catch {
+        // Ignore release errors when capture is already lost.
+      }
+    }
+    this.drag = null;
   };
 
   private getPointerPosition(event: PointerEvent) {
@@ -133,6 +177,7 @@ export class InputHandler {
 
   private screenToGrid(x: number, y: number): PlaceRequest | null {
     const { boardX, boardY, cellSize, rows, cols } = this.getMetrics();
+    if (cellSize <= 0 || rows <= 0 || cols <= 0) return null;
     const rawCol = Math.round((x - boardX) / cellSize);
     const rawRow = Math.round((y - boardY) / cellSize);
     if (
