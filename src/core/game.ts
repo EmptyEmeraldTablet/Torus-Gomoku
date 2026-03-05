@@ -6,7 +6,6 @@ import {
   GameMode,
   PlaceRequest,
   PlayerColor,
-  WrapTransition,
 } from "./types";
 import { mod } from "../utils/math";
 import { CameraController } from "../interaction/camera";
@@ -27,7 +26,6 @@ export class Game {
   private input: InputHandler;
   private onStateChange?: (board: BoardState) => void;
   private rafHandle = 0;
-  private wrapTransition: WrapTransition | null = null;
   private mode: GameMode = "pvp";
   private aiPlayer: PlayerColor = "white";
   private aiDifficulty: AIDifficulty = "medium";
@@ -61,7 +59,6 @@ export class Game {
     this.board.winner = null;
     this.board.moveHistory = [];
     this.camera.reset();
-    this.wrapTransition = null;
     this.notifyState();
     this.render();
     this.maybeTriggerAI();
@@ -81,7 +78,6 @@ export class Game {
       this.board.currentPlayer = humanPlayer;
     }
     this.board.winner = null;
-    this.wrapTransition = null;
     this.notifyState();
     this.render();
   }
@@ -92,7 +88,6 @@ export class Game {
     this.board = createBoard(nextRows, nextCols);
     this.camera = new CameraController(nextRows, nextCols);
     this.renderer.setBoardSize(nextRows, nextCols);
-    this.wrapTransition = null;
     this.notifyState();
     this.render();
     this.maybeTriggerAI();
@@ -141,7 +136,7 @@ export class Game {
       placement.coord.col + this.camera.offsetCol,
       this.board.cols,
     );
-    this.applyMove({ row: r, col: c }, placement.wrapRow, placement.wrapCol);
+    this.applyMove({ row: r, col: c });
   };
 
   private checkWin(row: number, col: number): boolean {
@@ -176,40 +171,18 @@ export class Game {
 
   private render() {
     if (this.rafHandle) return;
-    this.rafHandle = window.requestAnimationFrame((now) => {
+    this.rafHandle = window.requestAnimationFrame(() => {
       this.rafHandle = 0;
-      this.renderer.draw(this.board, this.camera, this.wrapTransition, now);
-      if (this.wrapTransition) {
-        if (now - this.wrapTransition.start < this.wrapTransition.duration) {
-          this.render();
-        } else {
-          this.wrapTransition = null;
-        }
-      }
+      this.renderer.draw(this.board, this.camera);
     });
   }
 
-  private applyMove(
-    coord: { row: number; col: number },
-    wrapRow = false,
-    wrapCol = false,
-  ) {
+  private applyMove(coord: { row: number; col: number }) {
     if (this.board.grid[coord.row][coord.col] !== null) return;
 
     const placedPlayer = this.board.currentPlayer;
     this.board.grid[coord.row][coord.col] = placedPlayer;
     this.board.moveHistory.push({ row: coord.row, col: coord.col });
-
-    if (wrapRow || wrapCol) {
-      this.wrapTransition = {
-        to: { row: coord.row, col: coord.col },
-        wrapRow,
-        wrapCol,
-        player: placedPlayer,
-        start: performance.now(),
-        duration: 420,
-      };
-    }
 
     if (this.checkWin(coord.row, coord.col)) {
       this.board.winner = placedPlayer;
@@ -243,7 +216,7 @@ export class Game {
       const move = pickAIMove(this.board, this.aiPlayer, this.aiDifficulty);
       this.aiThinking = false;
       if (!move || this.board.winner) return;
-      this.applyMove(move, false, false);
+      this.applyMove(move);
     }, 120);
   }
 

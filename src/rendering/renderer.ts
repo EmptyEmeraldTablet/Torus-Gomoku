@@ -1,4 +1,4 @@
-import { BoardState, RenderMetrics, WrapTransition } from "../core/types";
+import { BoardState, RenderMetrics } from "../core/types";
 import { MIN_CELL_PX, MAX_CELL_PX } from "../core/constants";
 import { mod } from "../utils/math";
 import { Camera } from "../interaction/camera";
@@ -44,19 +44,17 @@ export class Renderer {
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    const measuredWidth = rect.width > 1 ? rect.width : 720;
-    const measuredHeight = rect.height > 1 ? rect.height : 720;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.max(1, Math.floor(measuredWidth * dpr));
-    this.canvas.height = Math.max(1, Math.floor(measuredHeight * dpr));
+    this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const gridCols = Math.max(this.cols - 1, 1);
     const gridRows = Math.max(this.rows - 1, 1);
-    const padding = Math.max(20, Math.min(measuredWidth, measuredHeight) * 0.06);
+    const padding = Math.max(20, Math.min(rect.width, rect.height) * 0.06);
     const maxCell = Math.min(
-      (measuredWidth - padding * 2) / gridCols,
-      (measuredHeight - padding * 2) / gridRows,
+      (rect.width - padding * 2) / gridCols,
+      (rect.height - padding * 2) / gridRows,
     );
     let cellSize = Math.floor(Math.min(maxCell, MAX_CELL_PX));
     if (cellSize < MIN_CELL_PX) {
@@ -65,8 +63,8 @@ export class Renderer {
 
     const boardWidth = cellSize * gridCols;
     const boardHeight = cellSize * gridRows;
-    const boardX = (measuredWidth - boardWidth) / 2;
-    const boardY = (measuredHeight - boardHeight) / 2;
+    const boardX = (rect.width - boardWidth) / 2;
+    const boardY = (rect.height - boardHeight) / 2;
 
     this.metrics = {
       boardX,
@@ -79,19 +77,14 @@ export class Renderer {
     };
   }
 
-  draw(
-    board: BoardState,
-    camera: Camera,
-    transition: WrapTransition | null,
-    now: number,
-  ) {
+  draw(board: BoardState, camera: Camera) {
     this.clear();
     this.drawBoardBase();
-    this.drawPlayableAreaHint();
+    this.drawBoundaryHint();
     this.drawGrid();
+    this.drawStarPoints();
     this.drawPieces(board, camera);
     this.drawLastMove(board, camera);
-    this.drawWrapTransition(transition, camera, now);
     this.drawBoundaryArrows();
   }
 
@@ -108,11 +101,11 @@ export class Renderer {
     this.ctx.restore();
   }
 
-  private drawPlayableAreaHint() {
+  private drawBoundaryHint() {
     const { boardX, boardY, boardWidth, boardHeight, cellSize } = this.metrics;
     const band = Math.max(6, cellSize * 0.18);
     this.ctx.save();
-    this.ctx.fillStyle = "rgba(196, 106, 58, 0.08)";
+    this.ctx.fillStyle = "rgba(196, 106, 58, 0.06)";
     this.ctx.fillRect(
       boardX,
       boardY + boardHeight - band,
@@ -125,18 +118,13 @@ export class Renderer {
       band,
       boardHeight,
     );
-    this.ctx.fillStyle = "rgba(196, 106, 58, 0.12)";
+    this.ctx.fillStyle = "rgba(196, 106, 58, 0.1)";
     this.ctx.fillRect(
       boardX + boardWidth - band,
       boardY + boardHeight - band,
       band,
       band,
     );
-
-    this.ctx.strokeStyle = "rgba(92, 76, 62, 0.35)";
-    this.ctx.lineWidth = 1.5;
-    this.ctx.setLineDash([]);
-    this.ctx.strokeRect(boardX, boardY, boardWidth, boardHeight);
     this.ctx.restore();
   }
 
@@ -195,6 +183,42 @@ export class Renderer {
     ctx.restore();
   }
 
+  private drawStarPoints() {
+    if (this.rows !== this.cols) return;
+    const size = this.rows;
+    let points: Array<[number, number]> = [];
+
+    if (size === 9) {
+      points = [
+        [2, 2],
+        [2, 6],
+        [4, 4],
+        [6, 2],
+        [6, 6],
+      ];
+    } else if (size === 13 || size === 19) {
+      const mid = Math.floor(size / 2);
+      const edge = 3;
+      const max = size - 4;
+      const coords = [edge, mid, max];
+      points = coords.flatMap((r) => coords.map((c) => [r, c]));
+    }
+
+    if (points.length === 0) return;
+    const { boardX, boardY, cellSize } = this.metrics;
+    const radius = Math.max(2, cellSize * 0.08);
+    this.ctx.save();
+    this.ctx.fillStyle = "rgba(76, 60, 46, 0.65)";
+    for (const [r, c] of points) {
+      const x = boardX + c * cellSize;
+      const y = boardY + r * cellSize;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, radius, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+    this.ctx.restore();
+  }
+
   private drawPieces(board: BoardState, camera: Camera) {
     const { boardX, boardY, cellSize } = this.metrics;
     const radius = cellSize * 0.44;
@@ -222,55 +246,6 @@ export class Renderer {
     drawRing(this.ctx, x, y, cellSize * 0.52, "rgba(196, 106, 58, 0.7)", 2);
   }
 
-  private drawWrapTransition(
-    transition: WrapTransition | null,
-    camera: Camera,
-    now: number,
-  ) {
-    if (!transition) return;
-    const elapsed = now - transition.start;
-    if (elapsed < 0) return;
-    const progress = Math.min(elapsed / transition.duration, 1);
-    if (progress >= 1) return;
-
-    const easeOut = 1 - Math.pow(1 - progress, 3);
-    const { boardX, boardY, cellSize } = this.metrics;
-    const toGridR = mod(transition.to.row - camera.offsetRow, this.rows);
-    const toGridC = mod(transition.to.col - camera.offsetCol, this.cols);
-    const fromGridR = transition.wrapRow ? this.rows : toGridR;
-    const fromGridC = transition.wrapCol ? this.cols : toGridC;
-
-    const fromX = boardX + fromGridC * cellSize;
-    const fromY = boardY + fromGridR * cellSize;
-    const toX = boardX + toGridC * cellSize;
-    const toY = boardY + toGridR * cellSize;
-    const x = fromX + (toX - fromX) * easeOut;
-    const y = fromY + (toY - fromY) * easeOut;
-
-    this.ctx.save();
-    this.ctx.strokeStyle = "rgba(196, 106, 58, 0.55)";
-    this.ctx.lineWidth = Math.max(1, cellSize * 0.08);
-    this.ctx.setLineDash([6, 6]);
-    this.ctx.beginPath();
-    this.ctx.moveTo(fromX, fromY);
-    this.ctx.lineTo(toX, toY);
-    this.ctx.stroke();
-    this.ctx.setLineDash([]);
-
-    this.ctx.globalAlpha = 0.65;
-    drawStone(this.ctx, x, y, cellSize * 0.42, transition.player);
-    this.ctx.globalAlpha = 0.85;
-    drawRing(
-      this.ctx,
-      toX,
-      toY,
-      cellSize * (0.5 + 0.12 * (1 - progress)),
-      "rgba(196, 106, 58, 0.7)",
-      2,
-    );
-    this.ctx.restore();
-  }
-
   private drawBoundaryArrows() {
     const { boardX, boardY, boardWidth, boardHeight, cellSize } = this.metrics;
     const ctx = this.ctx;
@@ -282,15 +257,15 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    ctx.fillText("↓ 连接下边", boardX + boardWidth / 2, boardY - margin);
+    ctx.fillText("↑ 连接下边", boardX + boardWidth / 2, boardY - margin);
     ctx.fillText(
-      "↑ 连接上边",
+      "↓ 连接上边",
       boardX + boardWidth / 2,
       boardY + boardHeight + margin,
     );
-    ctx.fillText("→ 连接右边", boardX - margin, boardY + boardHeight / 2);
+    ctx.fillText("← 连接右边", boardX - margin, boardY + boardHeight / 2);
     ctx.fillText(
-      "← 连接左边",
+      "→ 连接左边",
       boardX + boardWidth + margin,
       boardY + boardHeight / 2,
     );

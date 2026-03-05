@@ -32,15 +32,4 @@ export type PlaceRequest = {
   coord: Coord;
   rawRow: number;
   rawCol: number;
-  wrapRow: boolean;
-  wrapCol: boolean;
-};
-
-export type WrapTransition = {
-  to: Coord;
-  wrapRow: boolean;
-  wrapCol: boolean;
-  player: PlayerColor;
-  start: number;
-  duration: number;
 };

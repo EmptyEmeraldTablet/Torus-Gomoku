@@ -121,9 +121,6 @@ export class InputHandler {
     if (this.drag?.pointerId === event.pointerId) {
       this.drag = null;
     }
-    if (this.canvas.hasPointerCapture(event.pointerId)) {
-      this.canvas.releasePointerCapture(event.pointerId);
-    }
   };
 
   private getPointerPosition(event: PointerEvent) {
@@ -138,13 +135,16 @@ export class InputHandler {
     const { boardX, boardY, cellSize, rows, cols } = this.getMetrics();
     const rawCol = Math.round((x - boardX) / cellSize);
     const rawRow = Math.round((y - boardY) / cellSize);
-    if (rawRow < 0 || rawRow > rows || rawCol < 0 || rawCol > cols) {
+    if (
+      rawRow < 0 ||
+      rawRow > rows - 1 ||
+      rawCol < 0 ||
+      rawCol > cols - 1
+    ) {
       return null;
     }
-    const wrapRow = rawRow === rows;
-    const wrapCol = rawCol === cols;
-    const row = wrapRow ? 0 : rawRow;
-    const col = wrapCol ? 0 : rawCol;
+    const row = rawRow;
+    const col = rawCol;
     const targetX = boardX + rawCol * cellSize;
     const targetY = boardY + rawRow * cellSize;
     const distance = Math.hypot(x - targetX, y - targetY);
@@ -155,8 +155,6 @@ export class InputHandler {
       coord: { row, col },
       rawRow,
       rawCol,
-      wrapRow,
-      wrapCol,
     };
   }
 }
